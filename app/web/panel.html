@@ -1,0 +1,838 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Accounts</title>
+<style>
+  /* One accent (Fable teal), one warning ladder (amber, red), one flag (violet =
+     capacity about to be lost). Everything else is ink on paper. */
+  :root{
+    color-scheme: light dark;
+    --ground:#EEF0F3; --paper:#FFFFFF; --paper-2:#F5F6F8;
+    --ink:#14171C; --ink-2:#2B313A; --slate:#5E6A79; --mist:#D9DEE5; --hair:#E7EAEF;
+    --fable:#0E8F7E; --low:#B4700C; --empty:#CF3F33; --waste:#6B47D1;
+    --fable-soft:rgba(14,143,126,.10); --waste-soft:rgba(107,71,209,.10);
+    --shadow:0 1px 0 rgba(255,255,255,.75) inset, 0 10px 30px rgba(20,24,32,.09), 0 1px 2px rgba(20,24,32,.06);
+    --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display",system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --ground:#111419; --paper:#191D24; --paper-2:#20252D;
+      --ink:#EDF0F4; --ink-2:#CBD2DC; --slate:#8B95A4; --mist:#2C323B; --hair:#242930;
+      --fable:#38CDB7; --low:#E8AD3E; --empty:#F0685C; --waste:#A78BFA;
+      --fable-soft:rgba(56,205,183,.12); --waste-soft:rgba(167,139,250,.14);
+      --shadow:0 1px 0 rgba(255,255,255,.04) inset, 0 14px 36px rgba(0,0,0,.5);
+    }
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  html{background:transparent} body{background:var(--ground)}
+  body{
+    font-family:var(--sans); color:var(--ink); font-size:13px; line-height:1.4; width:440px;
+    -webkit-font-smoothing:antialiased; font-variant-numeric:tabular-nums; font-feature-settings:"tnum" 1;
+  }
+  .shell{background:var(--ground); overflow:hidden}
+  .shell.constrained{overflow-y:auto}
+  b{font-weight:600}
+  .ok{color:var(--fable)} .low{color:var(--low)} .empty{color:var(--empty)} .warn{color:var(--empty)} .flag{color:var(--waste)}
+  .fill-ok{background:var(--fable)} .fill-low{background:var(--low)} .fill-empty{background:var(--empty)}
+  .est{opacity:.55}
+
+  /* ---------- top ---------- */
+  .top{display:flex; align-items:center; justify-content:space-between; padding:10px 14px 6px}
+  .brand{display:flex; align-items:baseline; gap:8px}
+  .brand b{font-size:14px; font-weight:640; letter-spacing:-.01em}
+  .brand span{font-size:11.5px; color:var(--slate)}
+  .dmline{padding:0 14px 6px; font-size:11.5px; color:var(--slate)}
+  .dmline.warn{color:var(--empty); font-weight:560}
+  .seg{display:flex; background:var(--paper-2); border:1px solid var(--hair); border-radius:9px; padding:2px}
+  .seg button{font:inherit; font-size:12px; font-weight:560; color:var(--slate); background:none; border:0; padding:4px 11px; border-radius:7px; cursor:pointer}
+  .seg button.on{background:var(--paper); color:var(--ink); box-shadow:0 1px 2px rgba(0,0,0,.14)}
+  .seg button:focus-visible, .btn:focus-visible, .row:focus-visible{outline:2px solid var(--fable); outline-offset:1px}
+
+  /* ---------- the pick, by class (docs/MENU-UX.md section 4): three launch lines, one account or home each ---------- */
+  .alerts{padding:0 14px 6px; font-size:11.5px; color:var(--empty); font-weight:560}
+  .pickcard{margin:0 12px 8px; padding:9px 14px 9px 16px; background:var(--paper); border-radius:14px; box-shadow:var(--shadow)}
+  .pickcard .lead{display:flex; align-items:baseline; gap:8px; font-size:11px; color:var(--slate); font-weight:560; margin-bottom:4px}
+  .pickcard .lead .mode{color:var(--fable); font-weight:620}
+  .pickcard .lead .asof{margin-left:auto; font-size:10.5px}
+  .route{display:grid; grid-template-columns:44px minmax(0,1fr) auto; gap:0 10px; align-items:center; padding:4px 0}
+  .route + .route{border-top:1px solid var(--hair)}
+  .route .cls{font-size:11px; font-weight:640; color:var(--slate); letter-spacing:.02em}
+  .route.fable .cls{color:var(--fable)}
+  .route .who{font-size:15px; font-weight:660; letter-spacing:-.015em; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .route .who.none{font-size:12px; font-weight:560; color:var(--empty)}
+  .route .why{grid-column:2; font-size:11px; color:var(--slate); line-height:1.3; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical}
+  .route .why b{color:var(--ink-2); font-weight:580}
+  .route .go{grid-column:3; grid-row:1 / span 2; align-self:center}
+  .btn{font:inherit; font-size:11.5px; font-weight:580; color:var(--ink-2); background:var(--paper); border:1px solid var(--hair); border-radius:9px; padding:7px 10px; white-space:nowrap; cursor:pointer; transition:background .12s, border-color .12s}
+  .btn:hover{background:var(--paper-2); border-color:var(--mist)}
+  .btn.primary{background:var(--fable); color:#052622; border-color:transparent; font-weight:640; padding:8px 13px; font-size:12px}
+  .btn.primary:hover{filter:brightness(1.05)}
+  @media (prefers-color-scheme: dark){ .btn.primary{color:#04211d} }
+
+  /* ---------- the fleet: what is in hand, what is being lost, the resets strip ---------- */
+  .week{padding:0 14px}
+  .fleet{display:grid; grid-template-columns:minmax(0,1fr) auto auto; align-items:baseline; gap:0 10px}
+  .fleet .t{font-size:12px; color:var(--ink-2); font-weight:560}
+  .fleet .fb{font-size:11.5px; color:var(--slate); font-weight:560}
+  .fleet .fb b{color:var(--ink-2); font-weight:620}
+  .fleet .n{font-size:17px; font-weight:700; letter-spacing:-.02em}
+  .fleet .n small{font-size:11px; font-weight:560; color:var(--slate); margin-left:4px; letter-spacing:0}
+  .track{height:5px; border-radius:3px; background:var(--mist); overflow:hidden}
+  .track i{display:block; height:100%; border-radius:3px; transition:width .5s cubic-bezier(.2,.7,.2,1)}
+  .fleet .track{grid-column:1 / -1; margin-top:6px; height:7px; border-radius:4px}
+  .fleet .loss{grid-column:1 / -1; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:0 10px; margin-top:5px; font-size:11px; color:var(--slate); white-space:nowrap}
+  .fleet .loss span{overflow:hidden; text-overflow:ellipsis}
+  .fleet .loss b{color:var(--ink-2); font-weight:600}
+  .fleet .loss .bad b{color:var(--empty)}
+  .fleet .loss .soon b{color:var(--waste)}
+  .fleet .sub{grid-column:1 / -1; font-size:11px; color:var(--slate); margin-top:3px}
+  .fleet .sub b{color:var(--ink-2)}
+
+  .resets{margin-top:9px}
+  .resets .t{font-size:11px; color:var(--slate); font-weight:560; margin-bottom:2px}
+  .rs-strip{position:relative; height:50px}
+  .rs-strip.l3{height:58px}
+  .rs-strip.l4{height:70px}
+  .rs-strip::before{content:""; position:absolute; left:0; right:0; top:26px; height:1px; background:var(--mist)}
+  .rs-now{position:absolute; left:0; top:20px; width:1px; height:13px; background:var(--ink-2)}
+  .rs-day{position:absolute; top:22px; width:1px; height:9px; background:var(--mist)}
+  .rs-tick{position:absolute; top:26px; width:0; height:0}
+  .rs-tick i{position:absolute; left:-4px; top:-4px; width:8px; height:8px; border-radius:50%; background:var(--fable); box-shadow:0 0 0 2px var(--ground)}
+  .rs-tick.waste i{background:var(--waste)}
+  .rs-tick span{position:absolute; left:6px; font-size:10.5px; color:var(--slate); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.2}
+  .rs-tick.lane0 span{top:-21px} .rs-tick.lane1 span{top:7px} .rs-tick.lane2 span{top:18px} .rs-tick.lane3 span{top:29px}
+  .rs-tick.wall i{background:var(--empty)}
+  .rs-tick.flip span{left:auto; right:6px}
+  .rs-tick.waste span{color:var(--waste); font-weight:600}
+  .rs-days{position:relative; height:14px; font-size:10.5px; color:var(--slate)}
+  .rs-days span{position:absolute; top:0; padding-left:3px; white-space:nowrap}
+  .rs-days span.now{padding-left:0; color:var(--ink-2); font-weight:560}
+
+  /* ---------- accounts ---------- */
+  .listhead{display:flex; justify-content:space-between; align-items:baseline; padding:8px 22px 3px 26px; font-size:11px; color:var(--slate); font-weight:560}
+  /* the list is a scroll container from birth and stays one (overflow-y always auto): a refresh patches its rows in
+     place and the fit routine only moves its max-height, so the owner's scroll position lives on (lane U, 2026-10-04) */
+  .list{padding:0 10px; overflow-y:auto; overscroll-behavior:contain}
+  /* past the screen's height the accounts scroll on their own; the pick, the week and the actions stay put */
+  .list.scrolls{padding-bottom:24px; -webkit-mask-image:linear-gradient(to bottom, #000 calc(100% - 22px), transparent); mask-image:linear-gradient(to bottom, #000 calc(100% - 22px), transparent)}
+  .row{position:relative; display:grid; grid-template-columns:minmax(0,1fr) auto auto; grid-template-areas:"name five pct" "track track track" "meta meta meta" "meta2 meta2 meta2";
+    gap:0 12px; padding:4px 12px 4px 16px; border-radius:10px; cursor:default; transition:background .12s}
+  .row:hover{background:var(--paper)}
+  .row.pick{background:var(--fable-soft)}
+  .row.pick::before{content:""; position:absolute; left:6px; top:9px; bottom:9px; width:3px; border-radius:2px; background:var(--fable)}
+  .row.off{opacity:.6}
+  .row .name{grid-area:name; font-size:13px; line-height:18px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; align-self:baseline}
+  .row .name .keep{font-size:10.5px; font-weight:620; color:var(--fable); margin-left:7px; letter-spacing:.01em}
+  .row .name .keep.lapsed{color:var(--empty)}
+  .row .name .keep.marked{color:var(--waste)}
+  .row .five{grid-area:five; display:flex; align-items:center; gap:6px; font-size:11px; color:var(--slate); align-self:center}
+  .row .five .track{width:48px; height:4px}
+  .row .five .v{font-weight:600; min-width:30px; text-align:right}
+  .row .five .rst{color:var(--slate); font-weight:500}
+  .row .pct{grid-area:pct; font-size:16px; line-height:18px; font-weight:720; letter-spacing:-.02em; min-width:52px; text-align:right; align-self:baseline}
+  .row .pct.none{font-size:12px; font-weight:560; color:var(--slate)}
+  .row > .track{grid-area:track; margin-top:3px; height:4px}
+  /* the slots measured at 11px in the browser (continue 41 (2)): "5, 2 working" 74px, "wastes 100%" 70, "resets 6d 23h" 73, "Fable ≈100%" 70, "bill Sep 30" 56 */
+  .row .meta{grid-area:meta; display:grid; grid-template-columns:minmax(0,1fr) 78px 74px 70px 56px 14px; gap:0 6px; margin-top:3px; font-size:11px; color:var(--slate); line-height:15px}
+  .row .meta .flag{font-weight:620}
+  .row .meta span{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .row .meta .r{text-align:right}
+  .row .meta b{color:var(--ink-2); font-weight:580}
+  .row .meta .nod{grid-column:1 / -1; color:var(--slate)}
+  /* continue 43: the owner's Fable reserve, a line of its own under the row it marks */
+  .row .meta .resv{grid-column:1 / -1; color:var(--fable); font-weight:620}
+  /* lane U: the second line, only when a slot has something to say: the loss (STRANDED, EXPIRING [EST]), the runway */
+  .row .meta2{grid-area:meta2; display:grid; grid-template-columns:auto minmax(0,1fr) 92px; gap:0 8px; margin-top:1px; font-size:11px; color:var(--slate); line-height:15px}
+  .row .meta2 .keep{font-weight:620; color:var(--fable); max-width:150px}
+  .row .meta2 .keep:empty{display:none}
+  .row .meta2 .keep.lapsed{color:var(--empty)}
+  .row .meta2 .keep.marked{color:var(--waste)}
+  .row .meta2 span{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .row .meta2 .r{text-align:right}
+  .row .meta2 b{color:var(--ink-2); font-weight:580}
+  .row .meta2 .bad, .row .meta2 .bad b{color:var(--empty); font-weight:620}
+  .row .meta2 .soon, .row .meta2 .soon b{color:var(--waste); font-weight:620}
+  .row .pct.wall{color:var(--empty)}
+  .row.codex .name b{font-weight:640}
+  .row.codex .name .prov{font-size:10.5px; font-weight:560; color:var(--slate); margin-left:6px}
+  .row.codex .pct{font-size:14px}
+  .machine{padding:8px 24px 0; font-size:11px; color:var(--slate); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .machine b{color:var(--ink-2); font-weight:580}
+  .machine .bad{color:var(--empty); font-weight:620}
+  .rz{font-size:13px; line-height:15px}
+  .have{color:var(--fable)} .spent{color:var(--slate); opacity:.5}
+  .dot{display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--fable); margin:0 1px 1px 0; vertical-align:middle}
+
+  /* ---------- foot ---------- */
+  .foot{padding:9px 24px 0; font-size:11px; color:var(--slate); line-height:1.4}
+  .foot b{color:var(--ink-2); font-weight:600}
+  .foot .line{margin-top:4px}
+  .foot .line.bad{color:var(--empty)}
+  .actions{display:flex; gap:6px; padding:10px 12px 11px; margin-top:2px}
+  .actions .btn{flex:none}
+  .actions .spacer{flex:1}
+  .waiting{padding:30px 16px; text-align:center; color:var(--slate); font-size:12px; line-height:1.5}
+  .waiting b{display:block; color:var(--ink); font-size:14px; font-weight:620; margin-bottom:4px}
+
+  /* ---------- analytics ---------- */
+  .ana{padding:2px 14px 14px}
+  #fleet .head>div{display:flex; flex-wrap:wrap; align-items:baseline; gap:2px 10px; margin:8px 0 4px}
+  #fleet .head .t{font-size:13px; font-weight:620; color:var(--ink)}
+  #fleet .head .sub{font-size:11px; color:var(--slate)}
+  .big{display:flex; align-items:flex-end; gap:10px; margin:6px 2px 2px}
+  .big .v{font-size:34px; font-weight:720; letter-spacing:-.03em; line-height:1}
+  .big .u{font-size:14px; font-weight:600; color:var(--slate); padding-bottom:4px}
+  .big .sub{font-size:11.5px; color:var(--slate); padding-bottom:5px; margin-left:auto; text-align:right}
+  .split{height:12px; border-radius:6px; overflow:hidden; display:flex; margin:14px 0 8px; border:1px solid var(--hair)}
+  .split span{height:100%}
+  .legend{display:flex; flex-wrap:wrap; gap:5px 12px; margin-bottom:16px}
+  .legend .li{display:flex; align-items:center; gap:5px; font-size:11px; color:var(--slate)}
+  .legend .li i{width:9px; height:9px; border-radius:2.5px; flex:none}
+  .legend .li b{color:var(--ink-2); font-weight:580}
+  .sect{font-size:11px; color:var(--slate); font-weight:580; margin:14px 2px 8px}
+  .chart{display:flex; align-items:flex-end; gap:2px; height:74px; padding:0 2px}
+  .chart .col{flex:1; min-width:0; height:100%; display:flex; flex-direction:column-reverse; gap:1px}
+  .chart .col i{display:block; width:100%}
+  .chart .col .fab{background:var(--fable); border-radius:2px 2px 0 0}
+  .chart .col .oth{background:var(--mist); border-radius:2px 2px 0 0}
+  .chart .col:hover .fab{filter:brightness(1.12)}
+  .kv{display:flex; flex-wrap:wrap; gap:3px 12px; font-size:11px; color:var(--slate); margin:8px 2px 0}
+  .kv b{color:var(--ink-2); font-weight:600}
+  .atable, .mtable, .btable{width:100%; border-collapse:collapse; font-size:11.5px; margin-top:4px}
+  .atable td, .mtable td, .btable td{padding:5px 2px; border-bottom:1px solid var(--hair); vertical-align:middle}
+  .atable tr:last-child td, .mtable tr:last-child td, .btable tr:last-child td{border-bottom:0}
+  .atable td.who, .btable td.who{max-width:200px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .atable td.bar{width:104px; padding:0 8px}
+  .atable td.bar i{display:block; height:6px; border-radius:3px; background:var(--fable)}
+  .atable td.num, .mtable td:last-child, .btable td.num{text-align:right; font-weight:580; color:var(--ink-2); white-space:nowrap}
+  .atable tr.hd td{font-size:10.5px; font-weight:500; color:var(--slate); padding:0 2px 3px; border-bottom:0}
+  .atable td.num.dim{color:var(--slate); font-weight:500; width:52px}
+  .btable td{white-space:nowrap}
+  .btable td.who .sub2{font-size:10.5px; color:var(--slate); line-height:1.25}
+  .btable td.num.soon{color:var(--low)}
+  .dim{color:var(--slate); font-weight:500}
+  .note{font-size:11px; color:var(--slate); margin:12px 2px 0; line-height:1.4}
+  .provider-head{padding:10px 0 5px; font-size:11px; font-weight:600; color:var(--ink-2)}
+  .provider-badge{font-size:10px; font-weight:600; color:var(--slate)}
+  .codex-row{padding:10px 0; border-top:1px solid var(--hair); cursor:default}
+  .codex-identity{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:2px 8px}
+  .codex-identity b{overflow-wrap:anywhere}
+  .codex-email{grid-column:1 / -1; color:var(--slate); font-size:11px; overflow-wrap:anywhere}
+  .codex-scope{margin-top:7px; font-size:11px; color:var(--ink-2)}
+  .codex-window{display:grid; grid-template-columns:64px minmax(0,1fr) 54px; gap:3px 8px; align-items:center; margin:5px 0}
+  .codex-window .amount{text-align:right; font-weight:600}
+  .codex-window .reset-at{grid-column:1 / -1; color:var(--slate); font-size:10.5px; overflow-wrap:anywhere}
+  .codex-facts{display:grid; grid-template-columns:66px minmax(0,1fr); gap:2px 8px; margin-top:5px; font-size:10.5px; color:var(--slate)}
+  .codex-facts dt{font-weight:500} .codex-facts dd{overflow-wrap:anywhere; min-width:0}
+  .codex-actions{display:flex; gap:6px; margin-top:7px}
+  .btn:disabled{cursor:default; opacity:.55}
+  .codex-capacity{font-size:10.5px; color:var(--slate); line-height:1.4}
+  .chart-x{display:flex; justify-content:space-between; font-size:10.5px; color:var(--slate); margin-top:4px; padding:0 2px}
+  [hidden]{display:none!important}
+  @media (prefers-reduced-motion: reduce){ .track i{transition:none} }
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="top">
+    <div class="brand"><b>Accounts</b><span id="liveline"></span></div>
+    <div class="seg">
+      <button id="tab-board" class="on" onclick="show('board')">Board</button>
+      <button id="tab-ana" onclick="show('ana')">Analytics</button>
+      <button id="tab-fleet" onclick="show('fleet')">Fleet</button>
+    </div>
+  </div>
+  <div class="dmline" id="dmline" hidden></div>
+
+  <div id="view-board">
+    <div class="alerts" id="alerts" hidden></div>
+    <div id="pick"></div>
+    <div class="week" id="week"></div>
+    <div id="listwrap"></div>
+    <div class="machine" id="machine"></div>
+    <div class="foot" id="foot"></div>
+    <div class="actions" id="actions"></div>
+  </div>
+
+  <div id="view-ana" hidden>
+    <div class="ana" id="ana"></div>
+  </div>
+
+  <div id="view-fleet" hidden>
+    <div class="ana" id="fleet"></div>
+  </div>
+</div>
+
+<script>
+// ---- sample data for standalone QA; the app injects window.CCA to override ----
+const SAMPLE = {
+  generated_at: Date.now()/1000,
+  pick: {email:"a1@example.com", reason:"consume-first: Fable week ends in 4d 3h with 98% unused, 5h 3%"},
+  fleet: {logged_in:8,
+    points:{opus:644, opus_of:800, accounts:8, opus_carried:false, fable:490, fable_of:800, fable_carried:true},
+    week:{remaining:644, of:800, runway_hours:39.4, accounts:8},
+    fable:{remaining:490, of:800, runway_hours:15.2, accounts:8, read:1, projected:2, estimated:5},
+    effective:{remaining:490, of:800, runway_hours:15.2, accounts:8},
+    ratio:1.97, next_reset:["a6@example.com", 1.2*86400], monthly_cost:1600,
+    bills:[["a4@example.com",6.1*86400,200,"estimate"],["a3@example.com",16.4*86400,200,"estimate"],["a5@example.com",16.9*86400,200,"confirmed"]]},
+  accounts: [
+    {email:"a2@example.com", five_pct:0, five_reset:0.9*3600, week_pct:18, week_reset:5.9*86400, fable_pct:37, fable_reset:5.9*86400, fable_src:"read", fable_age:54*60, binding:"fable", live:0, login_ok:true, expiring:true},
+    {email:"a3@example.com", five_pct:0, five_reset:null, week_pct:10, week_reset:5.8*86400, fable_pct:19.7, fable_reset:5.8*86400, fable_src:"estimated", fable_age:null, binding:"fable", live:0, login_ok:true},
+    {email:"a4@example.com", five_pct:77, five_reset:0.9*3600, week_pct:15, week_reset:2.5*86400, fable_pct:29.9, fable_reset:2.5*86400, fable_src:"projected", fable_age:51*60, binding:"fable", live:2, login_ok:true},
+    {email:"a5@example.com", five_pct:11, five_reset:0.8*3600, week_pct:22, week_reset:4.5*86400, fable_pct:43.4, fable_reset:4.5*86400, fable_src:"estimated", binding:"fable", live:2, login_ok:true},
+    {email:"a6@example.com", five_pct:null, five_reset:null, week_pct:50, week_reset:1.2*86400, fable_pct:98.7, fable_reset:1.2*86400, fable_src:"estimated", binding:"fable", live:0, login_ok:true, login_state:"vault"},
+    {email:"a7@example.com", five_pct:0, five_reset:null, week_pct:26, week_reset:5*86400, fable_pct:51.3, fable_reset:5*86400, fable_src:"estimated", binding:"fable", live:0, login_ok:true},
+    {email:"a1@example.com", five_pct:3, five_reset:0.9*3600, week_pct:1, week_reset:4.1*86400, fable_pct:2, fable_reset:4.1*86400, fable_src:"projected", fable_age:253*60, binding:"fable", live:1, login_ok:true},
+    {email:"a8@example.com", five_pct:null, week_pct:null, fable_pct:null, live:0, login_ok:true},
+  ],
+  analytics: {
+    as_of: Date.now()/1000, since:"2026-08-03", total:45.0e9, responses:128400, sessions:331,
+    split:{input:7.7e6, output:108.5e6, cache_read:43.8e9, cache_create:1.1e9},
+    models: [["Fable 5",17.2e9],["Opus 5",14.7e9],["Fable 5.1",9.8e9],["Opus 4.8",3.1e9],["Sonnet 5",0.1e9]],
+    fable:27.1e9, fable_share:0.60, today:1.0e9, week7:10.6e9,
+    days: Array.from({length:30},(_,i)=>{const t=[1.3,1.2,0.9,1.5,2.3,1.5,0,2.0,1.3,1.0][i%10]*1e9; const d=new Date(Date.now()-(29-i)*86400e3); return {date:d.toISOString().slice(0,10), total:t, fable:t*0.85};}),
+    months: [["2026-09",11.1e9,"so far"],["2026-08",33.9e9,"from 3 Aug"]],
+    accounts: [{email:"a1@example.com",week7:1.4e9,today:0.99e9,total:1.4e9},{email:"a6@example.com",week7:0.64e9,today:0,total:0.64e9},{email:"a4@example.com",week7:0.29e9,today:0,total:0.29e9},{email:"unattributed",week7:8.8e9,today:33e6,total:42.7e9}],
+    files:1572,
+  }
+};
+SAMPLE.accounts.forEach((a,i)=>{ a.bill={next:(6+i*3)*86400, amount:200, source:i===3?'confirmed':'estimate', tier:'Max 20x', since:Date.now()/1000-40*86400}; a.login_good_to=(15+i)*86400; if(i===7) a.plan_ok=false;
+  a.keep={kind:i<3?'bearing':null, lapsed:i===4, text:i<3?'Fable-bearing':(i===4?'RESERVED: Fable, lapsed (its Fable is out)':'')};
+  a.loss={stranded:i===4?41:0, expiring:[34,0,12,0,0,9,0,0][i], carried:true, expiring_in:a.week_reset}; });
+SAMPLE.fleet_mode='fable-first'; SAMPLE.alerts=[]; SAMPLE.fleet.loss={expiring:55, expiring_unknown:0}; SAMPLE.fleet.points.stranded=41;
+SAMPLE.routes={fable:{provider:'claude', account:'a2@example.com', reason:'Fable class: soonest reset with headroom', available:true},
+  opus:{provider:'claude', account:'a4@example.com', reason:'explicit --model honoured', available:true},
+  codex:{provider:'codex', home:'openai-2', reason:'code class: Codex above its weekly floor', week_left:57, floor:10}};
+const MODEL_COLORS = ["#3fd0bf","#5b8cff","#f0b441","#b389ff","#f0645f","#57c2a8","#8b95a6"];
+const DAYS=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"], MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+function inApp(){ try{ return !!(window.webkit && webkit.messageHandlers && webkit.messageHandlers.cca); }catch(e){ return false; } }
+// A render never tears down what the owner is looking at: an element's markup is replaced only when it changed, and a
+// keyed list (the accounts, the Codex homes) is patched child by child inside its one scroll container.
+function setHTML(el, html){ if(el.__html!==html){ el.innerHTML=html; el.__html=html; } return el; }
+function patchChildren(container, items){
+  const keep=new Set(items.map(x=>x.key));
+  for(const child of [...container.children]) if(!keep.has(child.dataset.key)) child.remove();
+  const tpl=document.createElement('template');
+  items.forEach((it,i)=>{
+    let el=[...container.children].find(c=>c.dataset.key===it.key);
+    if(el && el.__html!==it.html){ tpl.innerHTML=it.html; const fresh=tpl.content.firstElementChild; fresh.__html=it.html; el.replaceWith(fresh); el=fresh; }
+    else if(!el){ tpl.innerHTML=it.html; el=tpl.content.firstElementChild; el.__html=it.html; }
+    const at=container.children[i];
+    if(at!==el) container.insertBefore(el, at||null);
+  });
+}
+// Inside the app the sample is never shown: until the first `cca panel` answers the board says it is waiting.
+function D(){ if(window.CCA && window.CCA.accounts) return window.CCA; return inApp() ? null : SAMPLE; }
+function esc(x){ return String(x==null?"":x).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function call(action, arg, provider='claude'){
+  if(provider!=='claude' && ['new_session','renew','move','fallback','login'].includes(action)) return;
+  try{ if(window.webkit&&webkit.messageHandlers&&webkit.messageHandlers.cca) webkit.messageHandlers.cca.postMessage({action, arg, provider}); else console.log("action:",action,arg,provider);}catch(e){}
+}
+function short(e){ return (e||"").split('@')[0]; }
+function fmtDur(s){ if(s==null) return "—"; s=Math.max(0,s); const d=Math.floor(s/86400), h=Math.floor(s%86400/3600), m=Math.floor(s%3600/60);
+  if(d) return d+"d "+h+"h"; if(h) return h+"h "+m+"m"; return m+"m"; }
+// a countdown for a fixed slot: whole hours past three (the minutes are the pick card's)
+function fmtDurShort(s){ if(s==null) return "—"; s=Math.max(0,s); const d=Math.floor(s/86400), h=Math.floor(s%86400/3600), m=Math.floor(s%3600/60);
+  if(d) return d+"d "+h+"h"; if(h>=3) return h+"h"; if(h) return h+"h "+m+"m"; return m+"m"; }
+function fmtDayBack(s){ if(s==null) return ""; const d=new Date(Date.now()-s*1000), n=new Date(); if(d.toDateString()===n.toDateString()) return "today"; if(s<6*86400) return d.toLocaleDateString(undefined,{weekday:"short"}); return d.toLocaleDateString(undefined,{month:"short",day:"numeric"}); }
+function fmtAge(s){ if(s==null) return ""; s=Math.max(0,s); if(s<60) return "just now"; if(s<3600) return Math.floor(s/60)+"m ago"; if(s<86400) return Math.floor(s/3600)+"h ago"; return Math.floor(s/86400)+"d ago"; }
+function fmtTok(n){ if(n>=1e12)return (n/1e12).toFixed(1)+"T"; if(n>=1e9)return (n/1e9).toFixed(1)+"B"; if(n>=1e6)return (n/1e6).toFixed(0)+"M"; if(n>=1e3)return (n/1e3).toFixed(0)+"K"; return ""+Math.round(n); }
+function fmtClock(ts){ if(!ts) return "—"; return new Date(ts*1000).toLocaleTimeString([], {hour:"numeric", minute:"2-digit"}); }
+function fmtDate(sec){ if(sec==null) return "—"; const t=new Date(Date.now()+sec*1000); return MONTHS[t.getMonth()]+" "+t.getDate(); }
+function fmtWhen(sec){ const t=new Date(Date.now()+sec*1000); let h=t.getHours(); const m=t.getMinutes(), ap=h>=12?"pm":"am"; h=h%12||12;
+  return DAYS[t.getDay()]+" "+h+(m?":"+String(m).padStart(2,"0"):"")+ap; }
+function fmtDay(d){ if(!d) return "—"; const [y,m,dd]=d.split('-'); return MONTHS[+m-1]+" "+(+dd); }
+function money(n){ return n==null ? "—" : "$"+Math.round(n).toLocaleString(); }
+function sevLeft(left){ if(left==null) return "ok"; if(left<=20) return "empty"; if(left<=35) return "low"; return "ok"; }
+function left(p){ return p==null ? null : Math.max(0, Math.min(100, 100-p)); }
+function isEst(a){ return !!a.fable_rolled || (a.fable_src && a.fable_src!=="read"); }
+function fableNote(a){
+  if(a.fable_rolled) return "The Fable week reset after the last reading ("+fmtAge(a.age)+"), so this assumes nothing was used since. Use on claude.ai would not show; start a session here to take a reading.";
+  if(a.fable_src==="read") return "Claude Code's own Fable reading, "+fmtAge(a.fable_age)+".";
+  if(a.fable_src==="projected") return "Carried forward from a Fable reading "+fmtAge(a.fable_age)+", by how far the all-model week has moved since.";
+  if(a.fable_src==="estimated") return "No Fable reading yet: estimated from the all-model week as if this week's use was all Fable. Start a session here to take a reading.";
+  return "No Fable figure yet.";
+}
+
+function codexProvider(d){ return (d.providers||{}).codex||{}; }
+function codexAccounts(d){ return (codexProvider(d).accounts||[]).filter(a=>a.provider==='codex'); }
+function codexAge(d, age){ return age==null ? 'unknown' : fmtAge(age+Math.max(0,Date.now()/1000-(d.generated_at||Date.now()/1000))); }
+function codexReset(ts){
+  if(ts==null) return 'reset unknown';
+  const sec=ts-Date.now()/1000;
+  const exact=new Date(ts*1000).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZoneName:'short'});
+  return sec<=0 ? 'reset passed '+exact : 'resets in '+fmtDur(sec)+' · '+exact;
+}
+function codexWindow(w){
+  const known=Number.isFinite(w.left_percent), amount=known?Math.max(0,Math.min(100,w.left_percent)):null;
+  const name=w.window_minutes===300?'5h':w.window_minutes===10080?'week':w.window_minutes==null?(w.slot||'window'):'window '+w.window_minutes+'m';
+  const anticipated=w.anticipated_refill===true;
+  return `<div class="codex-window" data-window="${esc(name)}"><span>${esc(name)}</span>
+    <div class="track"><i class="fill-${sevLeft(amount)}${anticipated?' est':''}" style="width:${amount==null?0:amount}%"></i></div>
+    <span class="amount ${amount==null?'dim':sevLeft(amount)}">${amount==null?'unknown':(anticipated?'≈':'')+Math.round(amount)+'% left'}</span>
+    <span class="reset-at">${esc(codexReset(w.resets_at))}${w.wall?' · reached wall':''}${anticipated?' · anticipated refill, awaiting a reading':''}</span></div>`;
+}
+function codexScope(d,s){
+  const windows=Array.isArray(s.windows)?s.windows:[], extras=[];
+  const age=s.observed_age;
+  const elapsed=Math.max(0,Date.now()/1000-(d.generated_at||Date.now()/1000));
+  const stale=s.stale || (age!=null && age+elapsed>(codexProvider(d).reading_max_age??900));
+  const reached={rate_limit_reached:'quota limit reached',workspace_owner_credits_depleted:'workspace owner credits depleted',workspace_member_credits_depleted:'workspace member credits depleted',workspace_owner_usage_limit_reached:'workspace owner spend cap reached',workspace_member_usage_limit_reached:'workspace member spend cap reached'};
+  if(s.blocked) extras.push(`<span class="warn">Reached wall${s.rate_limit_reached_type?': '+esc(reached[s.rate_limit_reached_type]||s.rate_limit_reached_type):''}</span>`);
+  else if(s.rate_limit_reached_type) extras.push('Prior reached wall; current reset estimate shown');
+  for(const [slot,wall] of Object.entries(s.walls||{})) extras.push(esc(slot)+' wall · '+esc(codexReset(wall.resets_at)));
+  if(s.credits){ const c=s.credits; extras.push(c.unlimited===true?'credits unlimited':c.has_credits===false?'credits unavailable/depleted':c.balance!=null?'credits balance '+esc(c.balance):'credits balance unknown'); }
+  if(s.individual_limit){ const c=s.individual_limit; extras.push('spend cap '+(c.remaining_percent==null?'remaining unknown':esc(c.remaining_percent)+'% left')+(c.limit==null?'':' of '+esc(c.limit))+' · '+esc(codexReset(c.resets_at))); }
+  if(s.spend_control_reached===true) extras.push('<span class="warn">spend control reached</span>');
+  const facts=[['Observed',codexAge(d,s.observed_age)+(stale?' · stale':'')],
+    ['Source',esc((s.source_host||'unknown host')+'/'+(s.home_key||'unknown home'))+' · '+esc(s.source||'unknown')],
+    ['Ingested',codexAge(d,s.ingested_age)],['Changed',codexAge(d,s.last_changed_at==null?null:(d.generated_at||Date.now()/1000)-s.last_changed_at)],
+    ['Peer sync',codexAge(d,s.synced_age)],['Fetch','fetch age unknown']];
+  if(s.source_path) facts.push(['Rollout',esc(s.source_path)+(s.thread_id?' · thread '+esc(s.thread_id):'')]);
+  return `<div class="codex-scope" data-scope="${esc(s.limit_id||'account')}"><b>${esc(s.limit_name||s.limit_id||'Account quota')}${s.normal_model_slug?' · '+esc(s.normal_model_slug):''}</b>
+    ${windows.map(codexWindow).join('')}${!windows.length?'<div class="dim">Window reading unknown</div>':!windows.some(w=>w.window_minutes===300)?'<div class="dim">No short window in this reading</div>':''}
+    ${extras.length?'<div class="codex-extras">'+extras.join(' · ')+'</div>':''}
+    <dl class="codex-facts">${facts.map(([k,v])=>'<dt>'+k+'</dt><dd>'+v+'</dd>').join('')}</dl></div>`;
+}
+function codexItems(d){
+  // the board's Codex rows (docs/MENU-UX.md D6): the home, its week left, its reset and its reading's age, in the
+  // accounts' shape; the provenance (source, rollout, thread, ingestion, peer sync) is the Fleet page's (codexFleet)
+  const accounts=codexAccounts(d);
+  if(!accounts.length) return [];
+  const maxAge=codexProvider(d).reading_max_age??900;
+  const elapsed=Math.max(0,Date.now()/1000-(d.generated_at||Date.now()/1000));
+  const rows=accounts.map(a=>{
+    const scope=(a.scopes||[]).find(s=>!s.normal_model_slug) || (a.scopes||[])[0] || null;
+    const week=scope ? (scope.windows||[]).find(w=>w.window_minutes===10080 || w.name==='week') : null;
+    const known=!!week && Number.isFinite(week.left_percent), amount=known?Math.max(0,Math.min(100,week.left_percent)):null;
+    const stale=!!scope && (scope.stale || (scope.observed_age!=null && scope.observed_age+elapsed>maxAge));
+    const age = scope && scope.observed_age!=null ? "read "+fmtAge(scope.observed_age+elapsed)+(stale?" · stale":"") : "no reading";
+    const reset = week ? (week.resets_at==null ? "reset unknown" : (week.resets_at-Date.now()/1000<=0 ? "reset passed" : "resets "+fmtDurShort(week.resets_at-Date.now()/1000))) : "";
+    const wall = scope && scope.blocked;
+    const plan=a.plan||a.plan_claim;
+    return `<div class="row codex" data-key="codex:${esc(a.home)}" data-provider="codex" data-home="${esc(a.home)}">
+      <span class="name"><b data-fact="codex-home">codex:${esc(a.home)}</b><span class="prov">OpenAI · ${esc(a.display_email||"")}</span></span>
+      <span class="pct ${amount==null?'none':sevLeft(amount)}${wall?' wall':''}" data-fact="codex-week">${amount==null?"unknown":(week.anticipated_refill?"≈":"")+Math.round(amount)+"%"}</span>
+      <div class="track"><i class="fill-${sevLeft(amount)}${week&&week.anticipated_refill?' est':''}" style="width:${amount==null?0:amount}%"></i></div>
+      <div class="meta"><span data-fact="codex-state">week${wall?` <span class="warn">at its wall</span>`:""}${plan?` · ${esc(plan.value)}`:""}</span><span class="r" data-fact="codex-age">${age}</span><span class="r" data-fact="codex-reset">${reset}</span><span class="r"></span><span class="r"></span><span class="r"></span></div>
+    </div>`;
+  });
+  return [{key:'codex-head', html:`<div class="provider-head" data-key="codex-head">OpenAI · Codex homes <span class="codex-capacity">· quota % of each home's own week, never a Claude point · launch, move and fallback held</span></div>`}]
+    .concat(rows.map((html,i)=>({key:'codex:'+accounts[i].home, html})));
+}
+function codexArticles(d){
+  // the detailed home articles (M7 #46's read-only slice: every window, wall, credit, source and age), on the Fleet page
+  const accounts=codexAccounts(d);
+  if(!accounts.length) return '';
+  const hosts=[d.host,...(d.peers||[]).map(p=>p.host)].filter(Boolean);
+  const rows=accounts.map(a=>{
+    const plan=a.plan||a.plan_claim, logins=a.logins||{};
+    const machines=[...new Set([...hosts,...Object.keys(logins)])];
+    const loginRows=machines.map(host=>{ const l=logins[host]||{}, age=l.observed_at==null?null:(d.generated_at||Date.now()/1000)-l.observed_at;
+      return '<dt>'+esc(host)+'</dt><dd>'+esc(l.state||'not observed')+(l.backend?' · '+esc(l.backend):'')+' · '+codexAge(d,age)+'</dd>'; }).join('');
+    return `<article class="codex-row" data-provider="codex" data-key="codex:${esc(a.home)}" data-home="${esc(a.home)}">
+      <div class="codex-identity"><b>${esc(a.home_key||a.home)}</b><span class="provider-badge">OpenAI · Codex</span><span class="codex-email">${esc(a.display_email||a.home)}</span></div>
+      <dl class="codex-facts"><dt>Plan</dt><dd>${plan?esc(plan.value)+' · '+esc(plan.source)+' · '+codexAge(d,plan.observed_at==null?null:(d.generated_at||Date.now()/1000)-plan.observed_at):'unknown'}</dd>${loginRows}</dl>
+      ${(a.scopes||[]).map(s=>codexScope(d,s)).join('')||'<div class="codex-scope dim">Reading unknown · fetch age unknown</div>'}
+      ${(a.findings||[]).length?'<div class="codex-scope warn">'+[...new Set(a.findings.map(f=>esc(f.kind)+(f.source_host?' · '+esc(f.source_host):'')))].join('; ')+'</div>':''}
+      <div class="codex-actions"><button class="btn" disabled>New session</button><button class="btn" disabled>Move</button><button class="btn" disabled>Fallback</button></div>
+    </article>`;
+  }).join('');
+  return `<div class="provider-head">OpenAI · Codex homes, the readings</div><div class="codex-capacity">O = OpenAI/Codex. Quota % left is per account and scope. Fleet hours and compatible launch capacity unknown.</div>${rows}`;
+}
+function renderCodexRows(d){ return codexArticles(d); }
+function codexFleet(d){
+  const p=codexProvider(d), accounts=codexAccounts(d);
+  if(!accounts.length) return '';
+  const work=[];
+  let shown=0, total=0;
+  for(const kind of ['sessions','runs','parked']) for(const r of (p[kind]||[]).slice().reverse()){
+    if(r.provider && r.provider!=='codex') continue;
+    total++;
+    if(shown>=12) continue;   // as the Claude runs: the last twelve (the board rendered 334 ended runs on 2026-10-04)
+    shown++;
+    work.push(`<div class="codex-scope"><b>Codex ${esc(kind)} · ${esc(r.tag||r.id||r.thread_id||'unknown')}</b><div>${esc(r.host||'unknown host')}/${esc(r.home||'unknown home')} · ${esc(r.model||'model unknown')} · ${esc(r.effort||'effort unknown')} · ${esc(r.state||r.status||'unknown')}${r.no_switch?' · no-switch':''}${r.stalled?' · stalled':''}${r.until!=null?' · '+esc(codexReset(r.until)):''}</div></div>`);
+  }
+  return codexArticles(d) + `<div class="provider-head">OpenAI · Codex fleet</div><div class="codex-capacity">${accounts.length} registered home${accounts.length===1?'':'s'} · per-account quota % left · fleet hours unknown · launch, move and fallback held${total>shown?` · the last ${shown} of ${total}`:''}</div>${work.join('')||'<div class="codex-scope dim">Sessions, runs and parks not observed.</div>'}`;
+}
+
+function renderWaiting(){
+  const st=window.CCA_STATUS||{};
+  document.getElementById('liveline').textContent = "";
+  document.getElementById('pick').innerHTML = `<div class="waiting"><b>Reading the accounts…</b>${st.error
+    ? "The last refresh failed. "+esc(st.error)+"<br>Log: ~/Library/Logs/ClaudeAccounts.log"
+    : "First refresh since the app started. Right after boot this can take a few seconds."}</div>`;
+  for(const id of ['week','listwrap','foot','machine']) document.getElementById(id).innerHTML = "";
+  document.getElementById('alerts').hidden = true;
+  document.getElementById('actions').innerHTML = `<span class="spacer"></span><button class="btn" onclick="call('refresh')">Refresh</button>`;
+}
+
+// The week ahead: one tick per account where its Fable week resets. Labels
+// take two lanes so neighbours do not collide; fitResetLabels trims the rest.
+function renderResets(d){
+  const H=7*86400, now=new Date();
+  const marks=[]; const m=new Date(now); m.setHours(24,0,0,0);
+  while((m-now)/1000 < H){ marks.push({x:(m-now)/1000/H*100, label:DAYS[m.getDay()]}); m.setDate(m.getDate()+1); }
+  const rs=a=>(a.week_reset!=null?a.week_reset:a.fable_reset);
+  const ticks=d.accounts.filter(a=>rs(a)!=null && rs(a)<=H).map(a=>({a, x:rs(a)/H*100})).sort((p,q)=>p.x-q.x);
+  // the labels' widths are measured in the page's own font (the old 5.9 px per character estimate let neighbours
+  // overlap: app/qa/w1u-1/before-board-light.png); a label takes the first of four lanes with room, else the emptiest
+  const W=412, ends=[-1e9,-1e9,-1e9,-1e9];
+  ticks.forEach(t=>{
+    const px=t.x/100*W, w=textWidth(short(t.a.email), "500 10.5px "+getComputedStyle(document.body).fontFamily)+4;
+    t.flip = px + 6 + w > W;
+    const from = t.flip ? px-6-w : px+6;
+    let lane = ends.findIndex(e => from >= e+8);
+    // no lane with room: the dot stays, the label goes (the row's "resets" slot carries the exact time; a label
+    // over another label was the collision in app/qa/w1u-1/before-board-light.png)
+    t.hide = lane<0;
+    if(lane<0){ lane = 0; } else { ends[lane]=from+w; }
+    t.lane=lane;
+  });
+  const lanes = 1+Math.max(0,...ticks.map(t=>t.lane));
+  const tick = t => {
+    const wall = left(t.a.week_pct)!=null && left(t.a.week_pct)<0.5;
+    const cls = "rs-tick lane"+t.lane+(t.a.expiring?" waste":"")+(wall?" wall":"")+(t.flip?" flip":"");
+    return `<div class="${cls}" data-name="${esc(short(t.a.email))}" style="left:${t.x.toFixed(2)}%"><i></i>${t.hide?"":`<span>${esc(short(t.a.email))}</span>`}</div>`;
+  };
+  return `<div class="resets"><div class="t">Resets, next 7 days <span class="dim">· violet: Fable lost at that reset · red: at its wall</span></div>
+    <div class="rs-strip${lanes>3?' l4':(lanes>2?' l3':'')}"><i class="rs-now"></i>${marks.map(k=>`<i class="rs-day" style="left:${k.x.toFixed(2)}%"></i>`).join('')}${ticks.map(tick).join('')}</div>
+    <div class="rs-days"><span class="now">now</span>${marks.map(k=>`<span style="left:${k.x.toFixed(2)}%">${k.label}</span>`).join('')}</div></div>`;
+}
+let _measure;
+function textWidth(s, font){ try{ _measure=_measure||document.createElement('canvas').getContext('2d'); _measure.font=font; return _measure.measureText(s).width; }catch(e){ return s.length*5.9; } }
+function fitResetLabels(){
+  const strip=document.querySelector('.rs-strip'); if(!strip) return;
+  const W=strip.offsetWidth;
+  const ticks=[...strip.querySelectorAll('.rs-tick')].filter(el=>el.querySelector('span')).map(el=>({el, x:el.offsetLeft, lane:+((el.className.match(/lane(\d)/)||[0,0])[1]), flip:el.classList.contains('flip')}));
+  ticks.forEach((t,i)=>{
+    const span=t.el.querySelector('span');
+    let room;
+    if(t.flip){ const prev=ticks.slice(0,i).reverse().find(u=>u.lane===t.lane && !u.flip); room = t.x - (prev? prev.x+10+prev.el.querySelector('span').offsetWidth : 0) - 8; }
+    else { const next=ticks.slice(i+1).find(u=>u.lane===t.lane); room = (next? next.x : W) - t.x - 10; }
+    span.style.maxWidth = Math.max(22, Math.round(room))+"px";
+  });
+}
+
+function stateOf(a){
+  // the state slot: what runs on the account, or why nothing does (the board's live/work and login columns)
+  if(!a.login_ok) return a.login_state==="away" ? `<span class="warn">lives on ${esc(a.away_host||"another Mac")}</span>` : `<span class="warn">needs sign-in</span>`;
+  if(a.plan_ok===false) return `<span class="warn">no plan</span>`;
+  let s;
+  if(a.live>0) s = `<span class="dot"></span><b>${a.live}</b>${a.live_remote?` · ${a.live_remote} on ${esc((a.remote_hosts||[]).join(", "))}`:`, ${a.working||0} working`}`;
+  else s = "idle" + (a.stale ? " · used since" : "");   // its duration is the age slot's ("read 4d ago"): one fact per slot
+  if(a.holder && a.holder!==short(a.email)) s += ` <span>in ${esc(a.holder)}'s folder</span>`;
+  return s;
+}
+function lossOf(a){
+  // the loss slot, the board's STRANDED and EXPIRING lines: Fable that Opus made unspendable, Fable forecast to expire
+  const l=a.loss; if(!l) return "";
+  const parts=[];
+  if((l.stranded||0)>0.005) parts.push(`<span class="bad">STRANDED <b>${l.carried?"≈":""}${Math.round(l.stranded)}</b></span>`);
+  if(l.expiring==null) parts.push(`EXPIRING unknown`);
+  else if(l.expiring>0.005) parts.push(`<span class="${(l.expiring_in!=null && l.expiring_in<2*86400)?"soon":""}">EXPIRING [EST] <b>${Math.round(l.expiring)}</b> in ${fmtDurShort(l.expiring_in)}</span>`);
+  return parts.join(" · ");
+}
+function routeLine(cls, r, d){
+  // one launch line per class (docs/MENU-UX.md D1, D2): the account or home cca route names, its own reason verbatim,
+  // the account's figures from its row; the New session button launches `claude @account` (the wrapper picks the model)
+  const label={fable:"Fable", opus:"Opus", codex:"Codex"}[cls];
+  if(!r) return `<div class="route ${cls}" data-fact="route-${cls}"><span class="cls">${label}</span><span class="who none">no route</span><span class="why">cca route gave no answer</span></div>`;
+  const who = r.provider==="codex" ? (r.home||"") : (r.account||"");
+  const acct = d.accounts.find(a=>a.email===who);
+  let fig="";
+  if(r.provider==="codex") fig = r.week_left!=null ? `<b>${Math.round(r.week_left)}%</b> of its week · floor ${Math.round(r.floor||0)}%` : "week unknown";
+  else if(acct) fig = cls==="fable" ? `Fable <b>${isEst(acct)?"≈":""}${Math.round(left(acct.fable_pct)||0)}%</b> · resets ${fmtDurShort(acct.week_reset)}` : `week <b>${(acct.week_rolled||acct.stale)?"≈":""}${Math.round(left(acct.week_pct)||0)}%</b> · resets ${fmtDurShort(acct.week_reset)}`;
+  const none = !who || (r.provider==="claude" && r.available===false) || r.refused;
+  const btn = (r.provider==="claude" && who && !none) ? `<button class="btn${cls==="fable"?" primary":""} go" onclick="call('new_session','${esc(who)}')">New session</button>` : "";
+  // the reason in the tool's words: a Claude route's is the picker's first clause (cca route prints both), a Codex
+  // route's is cca route's own, its class prefix dropped (the class is this line's label)
+  const why = r.provider==="claude" ? ((r.admission_reason||r.reason||"").split(" · ")[0]) : (r.reason||"").replace(/^code class: /,"").replace(/^Fable class: /,"");
+  return `<div class="route ${cls}" data-fact="route-${cls}"><span class="cls">${label}</span><span class="who${none?" none":""}" data-fact="route-${cls}-who">${esc(who||"none")}</span>${btn}<span class="why" data-fact="route-${cls}-why">${r.provider==="codex"&&fig?fig+" · ":""}${esc(why)}</span></div>`;
+}
+function renderBoard(){
+  const d=D();
+  if(!d){ renderWaiting(); return; }
+  const st=window.CCA_STATUS||{ok:true};
+  const running = d.accounts.reduce((a,x)=>a+(x.live||0),0);
+  const parkedN = (d.parked||[]).filter(x=>x.alive).length;
+  document.getElementById('liveline').textContent = d.fleet.logged_in+" accounts, "+running+" session"+(running===1?"":"s")+(parkedN?", "+parkedN+" parked":"");
+  // the shared default model, under the account line: nothing while every machine names the policy's model
+  const dm=d.default_model||{}, dl=document.getElementById('dmline');
+  dl.hidden = !dm.line; dl.className = 'dmline'+(dm.level==='warn'?' warn':''); dl.textContent = dm.line ? ((dm.level==='warn'?"⚠ ":"")+dm.line) : "";
+  // continue 51: the captain's account under 20 week points is the fleet's first alert (cca status prints it first)
+  const al=document.getElementById('alerts'), alerts=d.alerts||[];
+  al.hidden = !alerts.length; setHTML(al, alerts.map(x=>"⚠ "+esc(x)).join("<br>"));
+
+  // ---- the pick, by class: Fable, Opus, Codex (D1, D2); the fleet's mode beside the heading ----
+  const rt=d.routes||null, f=d.fleet||{}, p=d.pick||{};
+  const fableWho = rt && rt.fable && rt.fable.account ? rt.fable.account : (p.email||"");
+  setHTML(document.getElementById('pick'), `<div class="pickcard">
+    <div class="lead"><span>Use next</span><span class="mode" data-fact="mode">${esc(d.fleet_mode||"")}</span><span class="asof" data-fact="asof">${st.ok===false?"⚠ refresh failed · ":""}${fmtClock(d.generated_at)}</span></div>
+    ${rt ? routeLine('fable', rt.fable, d)+routeLine('opus', rt.opus, d)+routeLine('codex', rt.codex, d)
+         : `<div class="route fable" data-fact="route-default"><span class="cls">Next</span><span class="who" data-fact="route-default-who">${esc(p.email||"—")}</span>${p.email?`<button class="btn primary go" onclick="call('new_session','${esc(p.email)}')">New session</button>`:""}<span class="why">${esc((p.reason||"").split(" · ")[0])}</span></div>`}
+    ${p.viable===false?`<div class="route"><span class="cls"></span><span class="why warn">Nothing is viable: a new session parks until the next useful reset (claude --anyway opens now).</span></div>`:""}
+  </div>`);
+
+  // ---- the fleet: in hand (Opus points first, continue 41 (2); Fable beside), the losses, the runway, the next reset ----
+  const pt=f.points||null;
+  const opusPct = (pt && pt.opus_of>0) ? Math.round(pt.opus/pt.opus_of*100) : null;
+  const nr=f.next_reset, lo=f.loss||null;
+  const working = d.accounts.reduce((n,x)=>n+(x.working||0),0);
+  const stranded = pt ? (pt.stranded||0) : null;
+  setHTML(document.getElementById('week'), (opusPct==null) ? "" : `<div class="fleet" data-fact="fleet">
+      <span class="t">In hand · ${pt.accounts} accounts</span>
+      <span class="fb" data-fact="fleet-fable">Fable <b>${pt.fable_carried?"≈":""}${Math.round(pt.fable)}</b></span>
+      <span class="n ${sevLeft(opusPct)}" data-fact="fleet-opus">${pt.opus_carried?"≈":""}${Math.round(pt.opus)}<small>of ${Math.round(pt.opus_of).toLocaleString()} Opus points</small></span>
+      <div class="track"><i class="fill-${sevLeft(opusPct)}${pt.opus_carried?" est":""}" style="width:${opusPct}%"></i></div>
+      <div class="loss">
+        <span class="${stranded>0.005?"bad":""}" data-fact="fleet-stranded">STRANDED <b>${pt.fable_carried?"≈":""}${Math.round(stranded||0)}</b> Fable points</span>
+        <span class="${(lo && lo.expiring>0.005)?"soon":""}" data-fact="fleet-expiring">${lo ? `EXPIRING [EST] <b>${Math.round(lo.expiring||0)}</b>${lo.expiring_unknown?` (+${lo.expiring_unknown} unknown)`:""}` : "EXPIRING unknown"}</span>
+      </div>
+      <span class="sub"><span data-fact="fleet-sessions"><b>${running}</b> session${running===1?"":"s"}, <b>${working}</b> working</span> · <span data-fact="fleet-runway">${(f.week&&f.week.runway_hours!=null)? `runway <b>≈${fmtDur(f.week.runway_hours*3600)}</b>`:""}</span> · <span data-fact="fleet-next">${nr? `next reset <b>${esc(short(nr[0]))}</b> in ${fmtDur(nr[1])}`:""}</span></span>
+    </div>` + renderResets(d));
+
+  // ---- accounts, most Opus left first (continue 41 (2)); one fact per fixed slot, the keep beside the name ----
+  const order = d.accounts.slice().sort((a,b)=>{
+    const la=left(a.week_pct), lb=left(b.week_pct);
+    if((la==null)!==(lb==null)) return la==null?1:-1;
+    if(la!==lb) return (lb||0)-(la||0);
+    return (a.week_reset||1e12)-(b.week_reset||1e12);
+  });
+  const rows = order.map(a=>{
+    const isPick = fableWho===a.email, l=left(a.week_pct), est=!!a.week_rolled||!!a.stale, s=sevLeft(l);
+    const noData = a.five_pct==null && a.week_pct==null && a.fable_pct==null;
+    const off = !a.login_ok || a.plan_ok===false;
+    const wall = l!=null && l<0.5;
+    const fl=left(a.five_pct);
+    const fiveFull = fl!=null && fl>=99.5;
+    const five = fl==null ? "" : `<div class="five" data-fact="five">5h<div class="track"><i class="fill-${sevLeft(fl)}${fiveFull?" est":""}" style="width:${fl}%"></i></div><span class="v ${fiveFull?"dim":sevLeft(fl)}">${fiveFull?"full":Math.round(fl)+"%"}</span>${(!fiveFull && sevLeft(fl)!=="ok" && a.five_reset)?`<span class="rst">${fmtDur(a.five_reset)}</span>`:""}</div>`;
+    const rz=a.reset||{};
+    const reset = rz.state==="ready" ? `<span class="r rz have" data-fact="reset">↺</span>` : (rz.state==="used"||rz.state==="none"||rz.state==="later") ? `<span class="r rz spent" data-fact="reset">↺</span>` : `<span class="r rz" data-fact="reset"></span>`;
+    const rw=a.runway;
+    const runway = (!rw || !rw.says || off) ? ``
+      : rw.says==="wastes" ? `<span class="${rw.near?"soon":""}">wastes <b>${Math.round(rw.unspent)}%</b></span>`
+      : `<span class="${rw.hours_wall<12?"bad":""}">out <b>${fmtDur(rw.hours_wall*3600)}</b></span>`;
+    const fl2=left(a.fable_pct);
+    const fableSlot = fl2==null ? "" : `Fable ${isEst(a)?"≈":""}${Math.round(fl2)}%`;
+    const k=a.keep||{}, keepText = k.text ? k.text.replace(" (its Fable is out)","") : "";
+    const keep = `<span class="keep${k.lapsed?" lapsed":(k.kind==="marked"?" marked":"")}" data-fact="keep">${esc(keepText)}</span>`;
+    const age = a.age==null ? "" : "read "+fmtAge(a.age);
+    const bill = a.bill && a.bill.next!=null && a.plan_ok!==false ? `bill <b>${fmtDate(a.bill.next)}</b>` : "";
+    const loss = lossOf(a);
+    const allocations=(a.allocation||{}).reservations||[];
+    const paused=a.fable_limit_blocked || a.fable_five_pct>=100 ? '<div class="resv">Fable paused</div>' : '';
+    const reserved=(a.allocation||{}).state==='UNKNOWN' ? '<div class="resv">reservations unavailable</div>' : allocations.length ? `<div class="resv">[D] ${allocations.length} charges · [EST] ≈${allocations.reduce((sum,r)=>sum+(r.remaining_hours||0),0).toFixed(2)} hours planned</div>` : "";
+    const meta2 = (loss||runway||keepText) ? `<div class="meta2">${keep}<span data-fact="loss">${loss}</span><span class="r" data-fact="runway">${runway}</span></div>` : `<div class="meta2" hidden>${keep}<span data-fact="loss"></span><span class="r" data-fact="runway"></span></div>`;
+    return `<div class="row${isPick?' pick':''}${off?' off':''}" data-key="${esc(a.email)}" data-email="${esc(a.email)}" tabindex="0" role="button" onclick="call('new_session','${esc(a.email)}')" onkeydown="if(event.key==='Enter')call('new_session','${esc(a.email)}')">
+      <span class="name"><span data-fact="email">${esc(a.email)}</span></span>
+      ${five}
+      <span class="pct ${l==null?'none':s}${wall?' wall':''}" data-fact="week">${l==null?(noData?"no data":"—"):(est?"≈":"")+Math.round(l)+"%"}</span>
+      <div class="track"><i class="fill-${s}${est?' est':''}" style="width:${l==null?0:l}%"></i></div>
+      <div class="meta">${noData
+        ? `<span class="nod">No usage yet. It starts filling when you run a session here.</span>`
+        : `<span data-fact="state">${stateOf(a)}${wall?` <span class="warn">at its wall</span>`:""}</span><span class="r" data-fact="age">${age}</span><span class="r" data-fact="resets">${a.week_reset!=null?"resets "+fmtDurShort(a.week_reset):""}</span><span class="r" data-fact="fable">${fableSlot}</span><span class="r" data-fact="bill">${bill}</span>${reset}`}</div>
+      ${meta2}${paused}${reserved}
+    </div>`;
+  });
+  const lw=document.getElementById('listwrap');
+  let head=lw.querySelector('.listhead'), list=lw.querySelector('.list');
+  if(!head||!list){ lw.innerHTML=`<div class="listhead"></div><div class="list"></div>`; head=lw.querySelector('.listhead'); list=lw.querySelector('.list'); }
+  setHTML(head, `<span>Opus left this week, most first</span><span>${d.accounts.some(a=>a.week_rolled||a.stale||isEst(a))?`≈ carried · `:""}[EST] forecast · <span class="have">↺</span> in hand</span>`);
+  patchChildren(list, rows.map((html,i)=>({key:order[i].email, html})).concat(codexItems(d)));
+
+  // ---- the machine: the peers' sync, one line; red words when a peer is behind or silent (D5) ----
+  const peers=(d.peers||[]).map(pr=>{ const bad = pr.synced_age==null || !pr.ok || pr.synced_age>=120;
+    const w = pr.synced_age==null ? "never synced" : (pr.ok ? "synced "+fmtAge(pr.synced_age) : "sync errors, last "+fmtAge(pr.synced_age));
+    return `<span class="${bad?"bad":""}"><b>${esc(pr.host)}</b> ${w}${pr.no_claude?" (no Claude)":""}</span>`; });
+  setHTML(document.getElementById('machine'), `<span data-fact="machine">${peers.join(" · ")}</span>`);
+
+  // ---- foot: money, then anything that needs a word ----
+  const bills=f.bills||[];
+  const lines=[];
+  if(f.monthly_cost!=null || bills.length)
+    lines.push(`<div class="line">About <b>${money(f.monthly_cost)}</b> a month across ${f.logged_in} plans.${bills.length?` Next bill <b>${esc(short(bills[0][0]))}</b> ${fmtDate(bills[0][1])}, in ${fmtDur(bills[0][1])}.`:""}</div>`);
+  const byHold={};
+  (d.folders||[]).forEach(x=>{ const g=byHold[x.holds]||(byHold[x.holds]={homes:[],live:0}); g.homes.push(short(x.home)+"'s"); g.live+=x.live||0; });
+  const drift = Object.entries(byHold).map(([holds,g])=>{
+    const n=g.homes, names = n.length===1 ? n[0] : n.slice(0,-1).join(', ')+' and '+n[n.length-1];
+    return `${esc(names)} folder${n.length===1?'':'s'} run${n.length===1?'s':''} as <b>${esc(short(holds))}</b>${g.live?` (${g.live} live)`:''}`;
+  }).join(', ');
+  if(drift) lines.push(`<div class="line">${drift} (a /login moved them; cca rehome puts idle folders back).</div>`);
+  const needLogin = d.accounts.filter(a=>!a.login_ok && a.login_state!=="away").map(a=>short(a.email));
+  if(needLogin.length) lines.push(`<div class="line">${esc(needLogin.join(' and '))} ${needLogin.length===1?'needs':'need'} a browser sign-in: Renew logins, or cca login &lt;email&gt;.</div>`);
+  const noPlan = d.accounts.filter(a=>a.plan_ok===false).map(a=>short(a.email));
+  if(noPlan.length) lines.push(`<div class="line">${esc(noPlan.join(' and '))}: no active billing on record, so the picker and the totals leave it out until billing is back on claude.ai.</div>`);
+  if(st.ok===false) lines.push(`<div class="line bad">Showing the last good refresh (${fmtClock(d.generated_at)}). Latest failed: ${esc(st.error||"cca panel returned nothing")}.</div>`);
+  setHTML(document.getElementById('foot'), lines.join(''));
+
+  setHTML(document.getElementById('actions'), `
+    <button class="btn" onclick="call('renew')">Renew logins</button>
+    <span class="spacer"></span>
+    <button class="btn" onclick="call('refresh')">Refresh</button>`);
+  requestAnimationFrame(fitResetLabels);
+}
+
+function renderAna(){
+  // Counted from the local transcripts, one count per API response (see cca).
+  const d=D();
+  if(!d){ document.getElementById('ana').innerHTML = `<div class="waiting"><b>Reading the transcripts…</b>Waiting for the first refresh.</div>`; return; }
+  const a=d.analytics||{};
+  const total=a.total||0;
+  const models=(a.models||[]).slice(0,7);
+  const split = models.map((m,i)=>`<span style="width:${(total? m[1]/total*100:0).toFixed(2)}%;background:${MODEL_COLORS[i%MODEL_COLORS.length]}"></span>`).join('');
+  const legend = models.map((m,i)=>`<div class="li"><i style="background:${MODEL_COLORS[i%MODEL_COLORS.length]}"></i>${m[0]} <b>${fmtTok(m[1])}</b></div>`).join('');
+  const days=a.days||[];
+  const maxd=Math.max(1,...days.map(d=>d.total||0));
+  const bars = days.map(d=>{
+    if(!d.total) return `<div class="col"><i class="oth" style="height:2px;opacity:.5"></i></div>`;
+    const fh=(d.fable||0)/maxd*100, oh=(d.total-(d.fable||0))/maxd*100;
+    return `<div class="col"><i class="fab" style="height:${fh.toFixed(1)}%"></i><i class="oth" style="height:${oh.toFixed(1)}%"></i></div>`;
+  }).join('');
+  const months = (a.months||[]).map(m=>`<tr><td>${m[0]}${m[2]?` <span class="dim">${m[2]}</span>`:''}</td><td class="num">${fmtTok(m[1])}</td></tr>`).join('');
+  // bars scale to the attributed accounts; the no-record row is capped so it cannot flatten them
+  const accts=a.accounts||[]; const maxw=Math.max(1,...accts.filter(x=>x.email!=="unattributed").map(x=>x.week7||0));
+  const arows = accts.map(x=>{
+    const un = x.email==="unattributed";
+    const w = Math.min(100, (x.week7||0)/maxw*100);
+    return `<tr><td class="who">${un?'<span class="dim">earlier sessions, no account record</span>':esc(x.email)}</td><td class="bar"><i style="width:${w.toFixed(1)}%${un?';background:var(--mist)':''}"></i></td><td class="num">${fmtTok(x.week7||0)}</td><td class="num dim">${x.today?fmtTok(x.today):''}</td></tr>`;
+  }).join('');
+  // plans: who bills next, at what price, and how long each login lasts
+  const f=d.fleet||{};
+  const plans=(d.accounts||[]).map(x=>({a:x, b:x.bill||{}})).sort((p,q)=>{
+    const k=x=>(x.a.plan_ok===false||x.b.next==null)?Infinity:x.b.next;
+    return (k(p)-k(q)) || p.a.email.localeCompare(q.a.email); });
+  const prows = plans.map(({a,b})=>{
+    const days = b.next!=null ? Math.floor(b.next/86400) : null;
+    const when = a.plan_ok===false ? `<span class="warn">no plan</span>`
+      : b.next==null ? `<span class="dim">no start on record</span>`
+      : `${fmtDate(b.next)} <span class="dim">${days===0?'today':days===1?'tomorrow':'in '+days+'d'}</span>`;
+    const est = a.plan_ok!==false && b.next!=null && !(b.source||'').includes('confirmed');
+    const src = est ? `<span class="dim">est.</span>` : '';
+    const sub = [b.tier||'', a.login_good_to!=null ? 'login to '+fmtDate(a.login_good_to) : ''].filter(Boolean).join(', ');
+    return `<tr><td class="who">${esc(a.email)}${sub?`<div class="sub2">${sub}</div>`:''}</td><td class="num${(days!=null&&days<=7&&a.plan_ok!==false)?' soon':''}">${when}</td><td class="num">${a.plan_ok===false?'—':money(b.amount)} ${src}</td></tr>`;
+  }).join('');
+  // the token economy read (#34): each live session here with its API calls in the last hour, from its transcript's tail
+  const lt=(d.live_turns||[]);
+  const trows = lt.map(x=>`<tr><td class="who">${esc(short(x.email||"?"))}<span class="dim"> · ${esc(x.kind)} in ${esc(x.cwd||"?")}</span></td><td class="num">${x.calls_last_hour}${x.short_last_hour?` <span class="dim">(${x.short_last_hour} short)</span>`:""}</td><td class="num dim">${x.calls_per_hour!=null?Math.round(x.calls_per_hour)+"/h":"—"}</td><td class="num dim">${x.last_call_age!=null?fmtAge(x.last_call_age):"—"}</td></tr>`).join('');
+  const sp=a.split||{}; const cr = total? Math.round((sp.cache_read||0)/total*100):0;
+  const fableShare = a.fable_share!=null ? Math.round(a.fable_share*100) : null;
+  document.getElementById('ana').innerHTML = `
+    <div class="big"><span class="v">${fmtTok(total)}</span><span class="u">tokens</span>
+      <span class="sub">since ${fmtDay(a.since)}<br>${(a.responses||0).toLocaleString()} responses, ${(a.sessions||0).toLocaleString()} sessions</span></div>
+    <div class="kv"><span>today <b>${fmtTok(a.today||0)}</b></span><span>7 days <b>${fmtTok(a.week7||0)}</b></span>${fableShare!=null?`<span>Fable <b>${fableShare}%</b></span>`:''}<span>cache reads <b>${cr}%</b></span><span>as of <b>${fmtClock(a.as_of)}</b></span></div>
+    <div class="split">${split}</div>
+    <div class="legend">${legend}</div>
+    <div class="sect">Live sessions here: API calls in the last hour <span class="dim">(short = ≤60 output tokens: a poll or an ack)</span></div>
+    <table class="atable"><tbody>${trows?`<tr class="hd"><td></td><td class="num">last hour</td><td class="num">rate</td><td class="num">last call</td></tr>`+trows:'<tr><td class="dim">no live session with a transcript here</td></tr>'}</tbody></table>
+    <div class="note">A prompt costs nothing; every call comes from a prompt (a person's, a paste's, the tool's nudge on a move). cca cost &lt;id&gt; reads one session or run whole; cca waste flags a session burning turns on nothing.</div>
+    <div class="sect">Tokens per day, last 30 days <span class="dim">(Fable in colour)</span></div>
+    <div class="chart">${bars}</div>
+    <div class="chart-x"><span>${fmtDay(days.length?days[0].date:a.since)}</span><span>today</span></div>
+    <div class="sect">By account, last 7 days</div>
+    <table class="atable"><tbody>${arows?`<tr class="hd"><td></td><td></td><td class="num">7 days</td><td class="num">today</td></tr>`+arows:'<tr><td class="dim">no sessions yet</td></tr>'}</tbody></table>
+    <div class="note">A session is split where its account changed (the statusline records every switch), so a folder that was /login'd to another account mid-week counts for each account in turn. Sessions from before the index began (Sep 7) have no record.</div>
+    <div class="sect">Plans and next bills${f.monthly_cost!=null?` <span class="dim">(about ${money(f.monthly_cost)} a month across ${f.logged_in} plans)</span>`:''}</div>
+    <table class="btable"><tbody>${prows||'<tr><td class="dim">no plan on record</td></tr>'}</tbody></table>
+    <div class="note">Next bill = the plan's start day each month, from the profile Claude Code fetched; amount = list price for the tier. Confirm a date from claude.ai with <b>cca billing set &lt;email&gt; &lt;date&gt; [amount]</b>. "login to" is the login's expiry from the vault copy.</div>
+    <div class="sect">By month</div>
+    <table class="mtable"><tbody>${months||'<tr><td class="dim">nothing yet</td></tr>'}</tbody></table>
+    <div class="note">Counted from the local transcripts, one count per API response; Claude Code's own /stats counts every content block of a response (2–3× high) and only refreshes when opened. In ${fmtTok(sp.input||0)}, out ${fmtTok(sp.output||0)}, cache read ${fmtTok(sp.cache_read||0)}, cache write ${fmtTok(sp.cache_create||0)}. Local dates.</div>`;
+}
+
+// When the page is taller than the window the app gave it, cap the account
+// list so it scrolls on its own and everything else stays in view. Runs after
+// every render and whenever the app resizes the view.
+// The owner's hand on the list: while the pointer is over it, or a scroll happened within the last second, the
+// layout holds still (no max-height change, no height posted); the deferred fit runs when the pointer leaves.
+const hold={over:false, scrolledAt:0, pending:false};
+function holdLayout(){ return hold.over || (Date.now()-hold.scrolledAt)<1000; }
+document.addEventListener('mouseover', e=>{ const l=e.target.closest&&e.target.closest('.list'); if(l&&!hold.over){ hold.over=true; } });
+document.addEventListener('mouseout', e=>{ const l=e.target.closest&&e.target.closest('.list'); if(l && !(e.relatedTarget&&e.relatedTarget.closest&&e.relatedTarget.closest('.list'))){ hold.over=false; if(hold.pending){ hold.pending=false; postHeight(); } } });
+document.addEventListener('scroll', e=>{ if(e.target&&e.target.classList&&e.target.classList.contains('list')) hold.scrolledAt=Date.now(); }, true);
+function fitList(){
+  const list=document.querySelector('.list'); if(!list) return;
+  if(holdLayout()){ hold.pending=true; return; }
+  // the app passes the screen's usable height as CCA_MAX; the window's own
+  // height is what we asked for last time, so it cannot be the limit
+  const shell=document.querySelector('.shell'), avail=window.CCA_MAX || (inApp()? 0 : window.innerHeight);
+  if(document.getElementById('view-board').hidden || avail<300){
+    if(shell.style.maxHeight){ shell.style.maxHeight=''; shell.classList.remove('constrained'); }
+    return;
+  }
+  // everything but the list is measured with the list as it is (its constraint does not change the others' height),
+  // so the list is never un-constrained to measure: its scroll container and its scrollTop survive every fit
+  const others=shell.offsetHeight-list.offsetHeight;
+  const room=Math.max(80, avail-others);
+  const needs=list.scrollHeight>room+2;
+  const maxH=needs?room+'px':'';
+  if(list.style.maxHeight!==maxH) list.style.maxHeight=maxH;
+  list.classList.toggle('scrolls', needs);
+  const over=shell.offsetHeight>avail;
+  const shellMax=over?avail+'px':'';
+  if(shell.style.maxHeight!==shellMax){ shell.style.maxHeight=shellMax; shell.classList.toggle('constrained', over); }
+}
+window.addEventListener('resize', ()=>{ fitList(); postHeight(); });
+function postHeight(){
+  try{
+    fitList();
+    if(holdLayout()){ hold.pending=true; return; }
+    const h = document.querySelector('.shell').offsetHeight;
+    if(window.webkit && webkit.messageHandlers && webkit.messageHandlers.cca)
+      webkit.messageHandlers.cca.postMessage({action:'height', arg:String(h)});
+  }catch(e){}
+}
+function show(v){
+  for(const k of ['board','ana','fleet']){
+    document.getElementById('view-'+k).hidden = v!==k;
+    document.getElementById('tab-'+k).classList.toggle('on', v===k);
+  }
+  if(v==='ana') renderAna(); else if(v==='fleet') renderFleet(); else requestAnimationFrame(fitResetLabels);
+  requestAnimationFrame(postHeight);
+}
+function fmtDurS(s){ if(s==null) return ""; s=Math.max(0,Math.round(s)); if(s<60) return s+"s"; if(s<3600) return Math.floor(s/60)+"m"; return Math.floor(s/3600)+"h "+Math.floor((s%3600)/60)+"m"; }
+function pickRows(d){
+  const picks=d.picks||[];
+  const rows=picks.length?picks.map(p=>{ const x=p.decision||{};
+    return `<tr><td class="who"><b>${esc(short(p.email))}</b><span class="dim"> · ${esc(p.model||'')}${p.tag?' · '+esc(p.tag):''}${p.tier?' · '+esc(p.tier):''}</span><br><span class="dim">${p.decision?`${esc(x.selection||'')} of ${esc(x.candidates??'?')}${x.runner_up?`, ahead of ${esc(short(x.runner_up))} on ${esc(x.decided_by||'?')}`:''}`:'no decision recorded'}</span></td><td class="num">${p.left==null?'':esc(Math.round(p.left))}</td><td class="dim">${fmtAge(p.age)}</td></tr>`; }).join('')
+    :`<tr><td class="dim">no launches in the last 24h</td></tr>`;
+  return `<div class="head" style="margin-top:14px"><div><span class="t">Picks</span><span class="sub">the last launches and what decided each</span></div></div><table class="atable"><tbody>${rows}</tbody></table>`;
+}
+function sessionRows(d){
+  const ss=d.sessions||[];
+  const rows=ss.length?ss.map(s=>`<tr><td class="who"><b>${esc(s.tag||'untagged')}</b> ${esc(short(s.email))}<span class="dim"> · ${esc(s.model||'')} · ${esc(s.host||'')}${s.cwd?' · '+esc(s.cwd):''}</span></td><td class="num">${s.context_pct==null?'':'ctx '+esc(Math.round(s.context_pct))+'%'}</td><td class="dim">${s.age==null?'':fmtAge(s.age)}</td></tr>`).join('')
+    :`<tr><td class="dim">no live sessions</td></tr>`;
+  return `<div class="head" style="margin-top:14px"><div><span class="t">Sessions</span><span class="sub">live, with the context each last reported</span></div></div><table class="atable"><tbody>${rows}</tbody></table>`;
+}
+function renderFleet(){
+  // Machines, headless runs, and the moves the switcher made today. Read-only, like everything here.
+  const d=D();
+  if(!d){ document.getElementById('fleet').innerHTML = `<div class="waiting"><b>Reading the fleet…</b>Waiting for the first refresh.</div>`; return; }
+  const peers=d.peers||[], runs=d.runs||[], moves=d.moves||[], parked=d.parked||[];
+  const mrows = [`<tr><td class="who">${esc(short(d.host||"this Mac"))}<span class="dim"> · this Mac</span></td><td class="num">${(d.accounts||[]).reduce((n,a)=>n+((a.live||0)-(a.live_remote||0)),0)} sessions</td><td class="dim">hub</td></tr>`]
+    .concat(peers.map(p=>`<tr><td class="who">${esc(p.host)}</td><td class="num">${p.live} session${p.live===1?"":"s"}${p.accounts&&p.accounts.length?`<span class="dim"> · ${esc(p.accounts.join(", "))}</span>`:""}</td><td class="${p.synced_age!=null&&p.synced_age<120&&p.ok?"dim":"warn"}">${p.synced_age==null?"never synced":(p.ok?"synced "+fmtAge(p.synced_age):"sync errors, last "+fmtAge(p.synced_age))}</td></tr>`));
+  const rrows = runs.length ? runs.map(r=>`<tr><td class="who"><b>${esc(r.status)}</b> ${r.tag?`<b>${esc(r.tag)}</b> `:""}${esc(short(r.email))}<span class="dim"> on ${esc(r.host)}${r.effort?` · ${esc(r.effort)}`:""}${r.moved?` · moved ${r.moved}×`:""}${r.parked_min?` · parked ${r.parked_min}m`:""}</span><br><span class="dim">${esc(r.task)}</span>${r.stalled?`<br><span class="warn">STALLED: ${esc(r.stalled)}</span>`:""}${r.unpushed?`<br><span class="warn">STALLED-UNPUSHED: ${esc(r.unpushed)}</span>`:""}${r.parked_reason?`<br><span class="warn">waiting: ${esc(r.parked_reason)}</span>`:(r.result?`<br><span class="dim">→ ${esc(r.result)}</span>`:"")}</td><td class="num">${fmtDurS(r.duration)}</td><td class="dim">${fmtAge(r.started_age)}</td></tr>`).join('')
+    : `<tr><td class="dim">no runs yet · <code>/on auto &lt;task&gt;</code> inside a session, or <code>cca on</code></td></tr>`;
+  const prows = parked.length ? parked.map(x=>`<tr><td class="who"><b>${esc(x.kind)}</b> ${x.tag?`<b>${esc(x.tag)}</b> `:""}${x.from?esc(short(x.from)):""}<span class="dim"> on ${esc(x.host)}${x.alive?"":" · waiter gone"}</span><br><span class="dim">${esc(x.reason||"")}</span><br><span>waiting for ${esc(x.until_why||"a reset")}${x.until!=null?` in ${fmtDur(x.until)}`:""}${x.cap!=null&&x.cap!==x.until?`, at most ${fmtWhen(x.cap)}`:""}</span></td><td class="dim">${fmtAge(x.since)}</td></tr>`).join('')
+    : `<tr><td class="dim">nothing parked · a session, run or launch parks when no account is viable and relaunches at the next useful reset</td></tr>`;
+  const vrows = moves.length ? moves.slice().reverse().map(m=>`<tr><td class="who">${m.parked?`<b>parked</b> ${esc(short(m.from||"?"))}`:`${esc(short(m.from||"?"))} → <b>${esc(short(m.to||"?"))}</b>`}<span class="dim"> · ${esc(m.kind)}${m.cwd?" in "+esc(m.cwd):""}${m.parked_min!=null?` · after ${m.parked_min} min parked`:""}</span><br><span class="dim">${esc(m.reason||"")}</span></td><td class="dim">${fmtAge(m.age)}</td></tr>`).join('')
+    : `<tr><td class="dim">no moves in the last 24h</td></tr>`;
+  document.getElementById('fleet').innerHTML = `
+    <div class="head" style="margin-top:14px"><div><span class="t">Machines</span><span class="sub">one store, synced every 15s from this Mac</span></div></div>
+    <table class="atable"><tbody>${mrows.join('')}</tbody></table>
+    <div class="head" style="margin-top:14px"><div><span class="t">Parked</span><span class="sub">waiting for a reset, then relaunching by themselves</span></div></div>
+    <table class="atable"><tbody>${prows}</tbody></table>
+    <div class="head" style="margin-top:14px"><div><span class="t">Runs</span><span class="sub">headless, supervised, moved when an account hits a limit</span></div></div>
+    <table class="atable"><tbody>${rrows}</tbody></table>
+    <div class="head" style="margin-top:14px"><div><span class="t">Moves today</span><span class="sub">sessions the switcher carried to another account</span></div></div>
+    <table class="atable"><tbody>${vrows}</tbody></table>${pickRows(d)}${sessionRows(d)}${codexFleet(d)}`;
+}
+function refresh(){ renderBoard(); if(!document.getElementById('view-ana').hidden) renderAna(); if(!document.getElementById('view-fleet').hidden) renderFleet(); postHeight(); }
+window.ccaRefresh = refresh;   // app calls this after injecting window.CCA
+refresh();
+</script>
+</body>
+</html>
